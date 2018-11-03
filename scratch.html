@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Mapbox Gl Elevation Demo</title>
+        <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+        <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
+        <script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script src='./mapbox-gl-elevation.js'></script>
+        <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+        <style>
+            body { 
+                margin:0; 
+                padding:0;  
+            }
+        </style>
+    </head>
+    <body>
+        <div id="elevation" style="height: 100vh; margin: 0; padding: 0;"></div>
+        <script>
+            fetch('./demo.geojson')
+                .then(data => data.json())
+                .then(json => {
+                    // explode vertices of first feature
+                    var vertices = turf.explode(json.features[0]);
+                    // assign duplicate of object to each objects properties (by default all reference same)
+                    vertices.features.forEach(vertex => {
+                        vertex.properties = {...vertex.properties};
+                    });
+                    // use turf to calculate distance along line of each feature
+                    vertices["features"].map((feature, index, features) => {
+                        index == 0 ? feature["properties"]["distance"] = 0 : 
+                            feature["properties"]["distance"] = (1000 * turf.distance(features[index - 1], feature, {units: 'kilometers'})) + features[index - 1].properties.distance;
+                    });
+                    // create data variable that only contains a array of arrays with [distance, elevation]
+                    var data = vertices.features.map(feature => [feature.properties.distance, feature.geometry.coordinates[2]]);
+
+                    // function that draws a graph within a given area 
+                    function graph(data, element) {
+                        // get height and width of parent element
+                        // offset also possible if necessary
+                        const offset = 0;
+                        const width = element.attr('width');
+                        const height = element.attr('height');
+                        const transform = element.attr('transform');
+                        // define scale, dimensions of svg to scale data to and domains, range of data values
+                        const x = d3.scaleLinear().range([0, width]).interpolate(d3.interpolateRound)
+                            .domain(d3.extent(data, d => d[0]));
+                        /*
+                        const y = d3.scaleLinear().range([height, 0]).interpolate(d3.interpolateRound)
+                            .domain(d3.extent(data, d => d[1]));
+                            */
+                        var extentY = d3.extent(data, d => d[1]);
+                        extentY[0] = extentY[0] - offset;
+                        const y = d3.scaleLinear().range([height, 0]).interpolate(d3.interpolateRound)
+                            .domain(extentY);
+                        // define line and area functions calling scale functions on each variable
+                        let area = d3.area()
+                            .x(d => x(d[0]))
+                            .y0(height)
+                            .y1(d => y(d[1]));
+                        let line = d3.line()
+                            .x(d => x(d[0]))
+                            .y(d => y(d[1]));
+                        // add polygon area path to group with predefined data and function
+                        g.append("path")
+                            .datum(data)
+                            .attr("class", "area")
+                            .attr("d", area);
+                        // add polygon line path to group with predefined data and function
+                        g.append("path")
+                            .datum(data)
+                            .attr("class", "line")
+                            .attr("d", line);
+                        // create group to store marker/dropdowns
+                        const focus = element.append('g')
+                            .attr('class', 'focus')
+                            .style('display', 'none');
+                        // add circle marker
+                        focus.append('circle')
+                            .attr('r', 4.5);
+                        // append x and y lines with respective classes 
+                        focus.append('line')
+                            .attr('class',  'x');
+                        focus.append('line')
+                            .attr('class',  'y');
+                        // appends rectangle over svg with event listners for mouseover, out, move
+                        element.append('rect')
+                            .attr('class', 'overlay')
+                            .attr('width', width)
+                            .attr('height', height)
+                            .on('mouseover', () => focus.style('display', null))
+                            .on('mouseout', () => focus.style('display', 'none'))
+                            .on('mousemove', mousemove);
+                        // style elements 
+                        d3.selectAll('.line')
+                            .style('fill', 'none')
+                            .style('stroke', 'steelblue')
+                            .style('stroke-width', '1.5px');
+                        d3.selectAll('.area')
+                            .style('fill', 'lightsteelblue')
+                        d3.select('.overlay')
+                            .style('fill', 'none')
+                            .style('pointer-events', 'all');
+                        d3.selectAll('.focus')
+                            .style('opacity', 0.7);
+                        d3.selectAll('.focus circle')
+                            .style('fill', 'none')
+                            .style('stroke', 'black');
+                        d3.selectAll('.focus line')
+                            .style('fill', 'none')
+                            .style('stroke', 'black')
+                            .style('stroke-width', '1.5px')
+                            .style('stroke-dasharray', '3 3');
+                        function mousemove(){
+                            // d3.mouse(this) returns [x, y] of mouse
+                            // x0 uses scale.invert to get real value from x value
+                            const x0 = x.invert(d3.mouse(this)[0]);
+                            // bisector gets nearest value to the left of d
+                            const bisectDistance = d3.bisector(d => d[0]).left;
+                            const i = bisectDistance(data, x0, 1);
+                            const d = data[i];
+                            // const i = bisectDate(data, x0, 1);
+                            // const d0 = data[i - 1];
+                            // const d1 = data[i];
+                            // const d = x0 - d0.date > d1.date - x0 ? d1 : d0;
+                            focus.attr('transform', `translate(${x(d[0])}, ${y(d[1])})`);
+                            focus.select('line.x')
+                                .attr('x1', 0)
+                                .attr('x2', -x(d[0]))
+                                .attr('y1', 0)
+                                .attr('y2', 0);
+
+                            focus.select('line.y')
+                                .attr('x1', 0)
+                                .attr('x2', 0)
+                                .attr('y1', 0)
+                                .attr('y2', height - y(d[1]));
+                        }
+                    }
+                    var element = d3.select('#elevation');
+                    // heights and margins for svg, change later
+                    // console.log(d3.select('#elevation').node().getBoundingClientRect());
+                    var svgWidth = element.node().getBoundingClientRect().width; 
+                    var svgHeight = element.node().getBoundingClientRect().height; 
+                    // var svgHeight = document.documentElement.clientHeight > 500 ? document.documentElement.clientHeight : 500; 
+                    var margin = { top: 20, right: 20, bottom: 30, left: 50  };
+                    var width = svgWidth - margin.left - margin.right;
+                    var height = svgHeight - margin.top - margin.bottom;
+                    // select element, create svg container and set height/width attributes
+                    var svg = element.append('svg').style('display', 'block');
+                    svg.attr("width", svgWidth).attr("height", svgHeight);
+                    // create group to put plot within, translated by margins
+                    var g = svg.append("g")
+                        .attr("height", height)
+                        .attr("width", width)
+                        .attr("transform", `translate(${margin.left}, ${margin.top})`);
+                    graph(data, g);
+                });
+
+/*
+    onAdd(map) {
+        this._map = map;
+        this._container = document.createElement('div');
+        this._container.className = 'mapboxgl-ctrl';
+        this._container.style.width = '500px';
+        this._container.style.height = '500px';
+        this._svg = this._container.appendChild(document.createElement('svg'));
+        this.drawChart(this._svg);
+        this._svg.append("path")
+            .datum(this._data)
+            .attr("fill", "steelblue")
+            .attr("d", area);
+        return this._container;
+    };
+*/
+        </script>
+    </body>
+</html>

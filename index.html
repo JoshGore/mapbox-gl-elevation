@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Mapbox Gl Elevation Demo</title>
+        <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+        <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.js'></script>
+        <script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+        <script src="https://d3js.org/d3.v5.min.js"></script>
+        <script src='./mapbox-gl-elevation.js'></script>
+        <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v0.50.0/mapbox-gl.css' rel='stylesheet' />
+        <style>
+            body { 
+                margin:0; 
+                padding:0;  
+            }
+        </style>
+    </head>
+    <body>
+        <div id="map" style="height: 100vh; width:100%;"></div>
+        <script>
+            mapboxgl.accessToken = 'pk.eyJ1Ijoiam9zaGciLCJhIjoiTFBBaE1JOCJ9.-BaGpeSYz4yPrpxh1eqT2A';
+            var map = new mapboxgl.Map({
+                container: 'map', // container id
+                style: 'mapbox://styles/mapbox/streets-v9', // stylesheet location
+                    center: [135.15, -32.20], // starting position [lng, lat]
+                    zoom: 12 // starting zoom
+            });
+            map.on('load', function () {
+                fetch('./demo.geojson')
+                    .then(data => {
+                        return data.json();
+                    })
+                    .then(json => {
+                        /*
+                        var vertices = turf.explode(json.features[0]);
+                        vertices.features.forEach(vertex => {
+                            vertex.properties = {...vertex.properties};
+                        })
+                        vertices["features"].map((feature, index, features) => {
+                            index == 0 ? feature["properties"]["distance"] = 0 : 
+                                feature["properties"]["distance"] = turf.distance(features[index - 1], feature) + features[index - 1].properties.distance;
+                        });
+                        */
+                        map.addLayer({
+                            "id": "route",
+                            "type": "line",
+                            "source": {
+                                "type": "geojson",
+                                "data": json,
+                            }
+                        });
+                        var elevationControl = new ElevationControl(json.features[0]);
+                        map.addControl(elevationControl, 'top-left');
+                    });
+            });
+        </script>
+    </body>
+</html>

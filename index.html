@@ -32,16 +32,6 @@
                         return data.json();
                     })
                     .then(json => {
-                        /*
-                        var vertices = turf.explode(json.features[0]);
-                        vertices.features.forEach(vertex => {
-                            vertex.properties = {...vertex.properties};
-                        })
-                        vertices["features"].map((feature, index, features) => {
-                            index == 0 ? feature["properties"]["distance"] = 0 : 
-                                feature["properties"]["distance"] = turf.distance(features[index - 1], feature) + features[index - 1].properties.distance;
-                        });
-                        */
                         map.addLayer({
                             "id": "route",
                             "type": "line",

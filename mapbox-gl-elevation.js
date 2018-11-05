@@ -5,10 +5,12 @@ class ElevationControl {
          * {
          * dimensions: {height: 15%, width: 15%}, (or as int for pixels)
          * margins: {top: 0, left: 0, right: 0, bottom: 0},
-         * graphOffset: {height: 0, right: 0, left: 0},
          * graphColor: 'lightsteelblue',
          * graphLineColor: 'steelblue',
          * graphOpacity: 1,
+         * graphOffset: {height: 0, right: 0, left: 0},
+         * colorGraphOffset: true,
+         * grid: // not implemented yet
          * icon: , // if not present no marker, if true default marker
          * summary: false,
          * }
@@ -19,16 +21,18 @@ class ElevationControl {
         // create margins object if not in options
         options.hasOwnProperty('margins') ? this._options.margins = options.margins : (this._options.margins = {});
         // define margins if not already set
-        !this._options.margins.hasOwnProperty('top') && (this._options.margins.height = 0);
-        !this._options.margins.hasOwnProperty('left') && (this._options.margins.height = 0);
+        !this._options.margins.hasOwnProperty('top') && (this._options.margins.top = 0);
+        !this._options.margins.hasOwnProperty('left') && (this._options.margins.left = 0);
         !this._options.margins.hasOwnProperty('right') && (this._options.margins.right = 0);
-        !this._options.margins.hasOwnProperty('bottom') && (this._options.margins.left = 0);
+        !this._options.margins.hasOwnProperty('bottom') && (this._options.margins.bottom = 0);
         // define graphOffset object if not already set
         options.hasOwnProperty('graphOffset') ? this._options.graphOffset = options.graphOffset : (this._options.graphOffset = {});
         // define individual values of graphOffset
         !this._options.graphOffset.hasOwnProperty('height') && (this._options.graphOffset.height = 0);
-        !this._options.graphOffset.hasOwnProperty('left') && (this._options.graphOffset.height = 0);
+        !this._options.graphOffset.hasOwnProperty('left') && (this._options.graphOffset.left = 0);
         !this._options.graphOffset.hasOwnProperty('right') && (this._options.graphOffset.right = 0);
+        // assign/define graph offset color
+        options.colorGraphOffset === false ? this._options.colorGraphOffset = false : this._options.colorGraphOffset = true;
         // assign/define graph area color
         this._options.graphColor = options.hasOwnProperty('graphColor') ? options.graphColor : 'lightsteelblue';
         // assign/define graph area opacity
@@ -85,25 +89,31 @@ class ElevationControl {
         var width = this._options.dimensions.width - margin.left - margin.right;
         var height = this._options.dimensions.height - margin.top - margin.bottom;
         // define scale, dimensions of svg to scale data to and domains, range of data values
-        this._x = d3.scaleLinear().range([0, width]).interpolate(d3.interpolateRound)
+        this._x = d3.scaleLinear().range([0, width - (this._options.graphOffset.left + this._options.graphOffset.right)]).interpolate(d3.interpolateRound)
             .domain(d3.extent(this._value, d => d[0]));
-        this._y = d3.scaleLinear().range([(height), 0]).interpolate(d3.interpolateRound)
+        this._y = d3.scaleLinear().range([(height - this._options.graphOffset.height), 0]).interpolate(d3.interpolateRound)
             .domain(d3.extent(this._value, d => d[1]));
         // select parent element
         var element = d3.select(this._container);
         // create svg container and set height/width attributes
         var svg = element.append('svg').style('display', 'block');
         svg.attr("width", this._options.dimensions.width).attr("height", this._options.dimensions.height);
-        // create group to put plot within, translated by margins, dimensions less margins
+        // create group to put plot within, translated by margins, dimensions less margins and offset
         var graphs = svg.append("g")
-            .attr("height", (height))
+            .attr("height", (height - this._options.graphOffset.height))
+            .attr("width", width - (this._options.graphOffset.left + this._options.graphOffset.right))
+            .attr("transform", `translate(${margin.left + this._options.graphOffset.left}, ${margin.top})`);
+        svg.append("rect")
+            .attr("height", this._options.graphOffset.height)
             .attr("width", width)
-            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            .attr("fill", (this._options.colorGraphOffset ? this._options.graphColor : 'none'))
+            .attr("opacity", this._options.graphOpacity)
+            .attr("transform", `translate(${margin.left}, ${margin.top + (height - this._options.graphOffset.height)})`);
         // create overlay group
         var overlay = svg.append("g")
-            .attr("height", (height))
+            .attr("height", height)
             .attr("width", width)
-            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+            .attr("transform", `translate(${margin.left + this._options.graphOffset.left}, ${margin.top})`);
         // add marker to map at start of path
         if (this._options.icon) {
             this._marker = new mapboxgl.Marker(!(this._options.icon === true) && this._options.icon).setLngLat(this._vertices.features[0].geometry.coordinates).addTo(this._map);
@@ -223,6 +233,7 @@ class ElevationControl {
                 .attr('x2', 0)
                 .attr('y1', 0)
                 .attr('y2', height - y(d[1]));
+            // if marker is true (actually not false) set location (if false then doesn't exist)
             marker && setMarkerByDistance(lineFeature, d[0], marker)
         };
     }

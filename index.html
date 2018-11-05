@@ -40,7 +40,16 @@
                                 "data": json,
                             }
                         });
-                        var elevationControl = new ElevationControl(json.features[0], {dimensions: {width: '25%', height: '12.5%'}, margins: {top: 10, left: 0, right: 0, bottom: 0}, graphOpacity: 0.5, graphColor: "red", graphLineColor: "blue", icon: true,});
+                        var elevationControl = new ElevationControl(json.features[0], {
+                            dimensions: {width: '25%', height: '12.5%'}, 
+                            margins: {top: 10, left: 0, right: 0, bottom: 0}, 
+                            graphOpacity: 0.5, 
+                            // graphColor: "red", 
+                            // graphLineColor: "blue", 
+                            graphOffset: {height: 20, left: 30, right: 30}, 
+                            // colorGraphOffset: false,
+                            // icon: true, 
+                        });
                         map.addControl(elevationControl, 'top-left');
                     });
             });
